@@ -10,7 +10,7 @@ const steps = [
   {
     icon: Camera,
     title: 'Open Camera',
-    description: 'Or use your camera to capture the waste directly',
+    description: 'Use your camera to capture the waste directly',
   },
   {
     icon: Search,

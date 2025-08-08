@@ -16,6 +16,17 @@ export default function ImageUpload() {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
 
+  // Function to reset all states for new upload
+  const resetUpload = () => {
+    setError(null);
+    setResult(null);
+    setIsLoading(false);
+    if (preview && preview.startsWith('blob:')) {
+      URL.revokeObjectURL(preview);
+    }
+    setPreview(null);
+  };
+
   // Cleanup effect for preview URLs
   useEffect(() => {
     return () => {
@@ -41,10 +52,17 @@ export default function ImageUpload() {
     }
 
     try {
+      // Reset all states for new upload
       setError(null);
       setIsLoading(true);
       setLoadingStage('preprocessing');
       setResult(null);
+      
+      // Clean up previous preview if exists
+      if (preview && preview.startsWith('blob:')) {
+        URL.revokeObjectURL(preview);
+        setPreview(null);
+      }
       
       // Create object URL for better memory management
       const imageUrl = URL.createObjectURL(file);
@@ -53,8 +71,8 @@ export default function ImageUpload() {
       // Wait until the <img> element is in the DOM and fully loaded
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          reject(new Error('Image loading timeout'));
-        }, 10000); // 10 second timeout
+          reject(new Error('Image loading timeout - please try a smaller image or different format'));
+        }, 15000); // Increased to 15 second timeout
 
         const waitForImg = () => {
           const imgEl = imageRef.current;
@@ -69,7 +87,7 @@ export default function ImageUpload() {
               };
               imgEl.onerror = () => {
                 clearTimeout(timeout);
-                reject(new Error('Failed to load image'));
+                reject(new Error('Failed to load image - please try a different image'));
               };
             }
           } else {
@@ -88,14 +106,16 @@ export default function ImageUpload() {
       
       setResult(classificationResult);
       
-      // Clean up object URL to prevent memory leaks
-      URL.revokeObjectURL(imageUrl);
+      // Don't clean up object URL here - keep it for display
+      // URL.revokeObjectURL(imageUrl);
     } catch (error) {
       // Clean up on error
       if (preview && preview.startsWith('blob:')) {
         URL.revokeObjectURL(preview);
       }
+      setPreview(null); // Reset preview on error
       setError(error instanceof Error ? error.message : 'An error occurred during classification');
+      console.error('Classification error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -130,7 +150,8 @@ export default function ImageUpload() {
         }
       }}
     >
-      <div className="bg-black/40 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/10">
+      <div className="relative bg-black/40 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/10">
+        {isLoading && <LoadingScreen stage={loadingStage} />}
         <div className="p-8 md:p-12">
           <motion.div 
             className="space-y-8"
@@ -147,8 +168,16 @@ export default function ImageUpload() {
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400 text-center">
-                {error}
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
+                <div className="text-center mb-3">{error}</div>
+                <div className="flex justify-center">
+                  <button
+                    onClick={resetUpload}
+                    className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-300 text-sm font-medium transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
               </div>
             )}
 
@@ -174,7 +203,6 @@ export default function ImageUpload() {
                     alt="Preview"
                     className="w-full h-full object-contain"
                   />
-                  {isLoading && <LoadingScreen stage={loadingStage} />}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -191,14 +219,36 @@ export default function ImageUpload() {
             className="fixed inset-0 flex items-center justify-center z-50 px-4"
           >
             <motion.div
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+              className="fixed inset-0 bg-gradient-to-br from-green-900/30 via-black/40 to-emerald-900/30 backdrop-blur-md"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setResult(null)}
             />
-            <motion.div className="relative bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden max-w-2xl w-full mx-4">
+            <motion.div className="relative bg-gradient-to-br from-green-950/60 via-black/70 to-emerald-950/60 backdrop-blur-2xl border border-green-400/20 rounded-3xl shadow-2xl shadow-green-500/10 overflow-hidden max-w-2xl w-full mx-4">
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-emerald-500/5 pointer-events-none" />
+              {/* Close button */}
+              <button
+                onClick={() => setResult(null)}
+                className="absolute top-4 right-4 z-10 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
               <ClassificationResult result={result} />
+              {/* Analyze Another Image button */}
+              <div className="p-6 pt-0">
+                <button
+                  onClick={() => {
+                    setResult(null);
+                    resetUpload();
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-xl text-white font-medium transition-all duration-200 shadow-lg shadow-green-500/25"
+                >
+                  Analyze Another Image
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

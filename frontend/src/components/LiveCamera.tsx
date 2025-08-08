@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Camera, RotateCcw } from 'lucide-react';
 import { classifyImage, type ClassificationResult as ClassificationResultType } from '../lib/classifier';
+import { ClassificationResult } from './ClassificationResult';
+import { AIClassificationLoader } from './AIClassificationLoader';
 
 interface LiveCameraProps {
   onClose: () => void;
@@ -217,21 +219,7 @@ export function LiveCamera({ onClose }: LiveCameraProps) {
                 </div>
               )}
 
-              {/* Classification result overlay */}
-              {classification && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 text-white px-4 py-3 rounded-lg backdrop-blur-sm border border-white/20 max-w-sm w-full mx-4"
-                >
-                  <div className="text-center">
-                    <p className="font-semibold text-green-400 mb-1">{classification.material}</p>
-                    <p className="text-xs text-gray-300">
-                      {(classification.confidence * 100).toFixed(1)}% confidence • {classification.recyclable ? 'Recyclable' : 'Not recyclable'}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
+
             </div>
           </div>
 
@@ -244,15 +232,60 @@ export function LiveCamera({ onClose }: LiveCameraProps) {
                 className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-full w-16 h-16 flex items-center justify-center transition-colors shadow-lg"
                 aria-label="Capture image"
               >
-                {isCapturing ? (
-                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Camera className="w-8 h-8" />
-                )}
+                <Camera className="w-8 h-8" />
               </button>
             </div>
           )}
         </div>
+
+        {/* AI Classification Loading Animation */}
+        <AnimatePresence>
+          {isCapturing && (
+            <AIClassificationLoader stage="analyzing" />
+          )}
+        </AnimatePresence>
+
+        {/* Classification Result Modal - Same style as ImageUpload */}
+        <AnimatePresence>
+          {classification && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="fixed inset-0 flex items-center justify-center z-60 px-4"
+            >
+              <motion.div
+                className="fixed inset-0 bg-gradient-to-br from-green-900/30 via-black/40 to-emerald-900/30 backdrop-blur-md"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setClassification(null)}
+              />
+              <motion.div className="relative bg-gradient-to-br from-green-950/60 via-black/70 to-emerald-950/60 backdrop-blur-2xl border border-green-400/20 rounded-3xl shadow-2xl shadow-green-500/10 overflow-hidden max-w-2xl w-full mx-4">
+                <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-emerald-500/5 pointer-events-none" />
+                {/* Close button */}
+                <button
+                  onClick={() => setClassification(null)}
+                  className="absolute top-4 right-4 z-10 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <ClassificationResult result={classification} />
+                {/* Capture Another Image button */}
+                <div className="p-6 pt-0">
+                  <button
+                    onClick={() => setClassification(null)}
+                    className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-xl text-white font-medium transition-all duration-200 shadow-lg shadow-green-500/25"
+                  >
+                    Capture Another Image
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </AnimatePresence>
   );
