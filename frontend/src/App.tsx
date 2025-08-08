@@ -23,19 +23,15 @@ export default function App() {
 
   return (
     <div className={`min-h-screen flex flex-col ${darkMode ? 'dark' : ''}`}>
-      <div className="flex-1 text-white transition-colors">
-        <div className="bg-black">
-          <Header darkMode={darkMode} toggleDarkMode={() => setDarkMode(!darkMode)} />
-          <Hero />
-          <HowItWorks />
-          <main>
-            <ImageUpload />
-          </main>
-        </div>
+      <div className="flex-1 bg-black text-white transition-colors">
+        <Header darkMode={darkMode} toggleDarkMode={() => setDarkMode(!darkMode)} />
+        <Hero />
+        <HowItWorks />
+        <main>
+          <ImageUpload />
+        </main>
         <ImpactSection />
-        <div style={{ background: 'linear-gradient(135deg, rgb(2, 6, 23) 0%, rgb(15, 23, 42) 50%, rgb(30, 41, 59) 100%)' }}>
-          <Footer />
-        </div>
+        <Footer />
       </div>
     </div>
   );
