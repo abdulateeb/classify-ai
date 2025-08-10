@@ -1,18 +1,15 @@
-# Core Dependencies for WasteCycle Full-Stack Application
+# Core Dependencies for Waste Material Identification API
 
 # Web Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
+fastapi>=0.104.0,<1.0.0             # Modern async web framework
+uvicorn[standard]>=0.24.0,<1.0.0    # ASGI server with performance optimizations
+python-multipart>=0.0.6,<1.0.0     # File upload support
 
 # Google Gemini AI
-google-generativeai==0.3.2
+google-generativeai>=0.3.0,<1.0.0  # Google Gemini API SDK
 
 # Environment Management
-python-dotenv==1.0.0
+python-dotenv>=1.0.0,<2.0.0        # Load environment variables from .env file
 
-# Image Processing
-pillow==10.1.0
-
-# Async File Operations
-aiofiles==23.2.1
+# Image Processing (optional, if needed later)
+Pillow>=10.0.0,<11.0.0              # Image processing capabilities

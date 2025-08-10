@@ -2,18 +2,18 @@ import { performanceMonitor } from './performance';
 import { ErrorCategory, withErrorHandling } from './errorHandler';
 
 export interface ClassificationResult {
-  /** The identified material type */
+  /** The fine-grained class name predicted by the model */
   material: string;
   /** Model confidence (0-1) */
   confidence: number;
-  /** Whether it is recyclable */
+  /** Whether it is recyclable according to simple heuristics */
   recyclable: boolean;
-  /** Recycling and disposal recommendations */
-  recommendations: string | string[];
+  /** Actionable recycling instructions */
+  recommendations: string[];
 }
 
-// API endpoint configuration - use relative URL for same-domain deployment
-const API_BASE_URL = '';
+// API endpoint configuration
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export async function loadModel() {
   // No longer need to load a local model since we're using Gemini API
@@ -43,23 +43,37 @@ export async function loadModel() {
   );
 }
 
-export async function classifyImage(imageFile: File): Promise<ClassificationResult> {
+export async function classifyImage(imageElement: HTMLImageElement): Promise<ClassificationResult> {
   performanceMonitor.startTimer('classification');
 
   try {
+    // Convert image to blob for upload
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    
+    canvas.width = imageElement.naturalWidth;
+    canvas.height = imageElement.naturalHeight;
+    ctx.drawImage(imageElement, 0, 0);
+    
+    // Convert canvas to blob
+    const blob = await new Promise<Blob>((resolve) => {
+      canvas.toBlob((blob) => {
+        resolve(blob!);
+      }, 'image/jpeg', 0.8);
+    });
+
     // Create FormData for API request
     const formData = new FormData();
-    formData.append('image', imageFile);
+    formData.append('file', blob, 'image.jpg');
 
-    // Call the /identify API endpoint
+    // Call the NEW /identify API endpoint
     const response = await fetch(`${API_BASE_URL}/identify`, {
       method: 'POST',
       body: formData,
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      throw new Error(`API request failed: ${response.status}`);
     }
 
     const result = await response.json();
@@ -71,11 +85,15 @@ export async function classifyImage(imageFile: File): Promise<ClassificationResu
     const classificationTime = performanceMonitor.endTimer('classification');
     console.log(`Classification completed in ${classificationTime.toFixed(2)}ms`);
 
+    // Process the material response and determine recyclability
+    const material = result.material.toLowerCase().trim();
+    const recyclabilityInfo = determineRecyclability(material);
+
     return {
       material: result.material,
-      confidence: result.confidence || 0.75,
-      recyclable: result.recyclable || false,
-      recommendations: result.recommendations || 'No specific recommendations available',
+      confidence: 0.95, // Gemini doesn't return confidence, using high default
+      recyclable: recyclabilityInfo.recyclable,
+      recommendations: recyclabilityInfo.recommendations,
     };
   } catch (error) {
     performanceMonitor.endTimer('classification');
@@ -84,12 +102,79 @@ export async function classifyImage(imageFile: File): Promise<ClassificationResu
   }
 }
 
-export async function checkHealth(): Promise<{ status: string }> {
-  const response = await fetch(`${API_BASE_URL}/health`);
+/**
+ * Determine recyclability and recommendations based on identified material
+ */
+function determineRecyclability(material: string): { recyclable: boolean; recommendations: string[] } {
+  const materialLower = material.toLowerCase();
   
-  if (!response.ok) {
-    throw new Error(`Health check failed: ${response.status}`);
+  // Plastic materials
+  if (materialLower.includes('plastic') || materialLower.includes('bottle') || materialLower.includes('container')) {
+    return {
+      recyclable: true,
+      recommendations: [
+        'Rinse and dry before recycling',
+        'Remove caps and labels if possible',
+        'Check local recycling guidelines for plastic type'
+      ]
+    };
   }
   
-  return response.json();
+  // Glass materials
+  if (materialLower.includes('glass') || materialLower.includes('jar')) {
+    return {
+      recyclable: true,
+      recommendations: [
+        'Rinse thoroughly to remove residue',
+        'Remove metal lids and caps',
+        'Separate by color if required locally'
+      ]
+    };
+  }
+  
+  // Paper materials
+  if (materialLower.includes('paper') || materialLower.includes('cardboard') || materialLower.includes('magazine') || materialLower.includes('newspaper')) {
+    return {
+      recyclable: true,
+      recommendations: [
+        'Keep dry and clean',
+        'Remove plastic windows or tape',
+        'Flatten boxes to save space'
+      ]
+    };
+  }
+  
+  // Metal materials
+  if (materialLower.includes('metal') || materialLower.includes('aluminum') || materialLower.includes('steel') || materialLower.includes('can')) {
+    return {
+      recyclable: true,
+      recommendations: [
+        'Rinse containers to remove food residue',
+        'Remove non-metal parts like plastic lids',
+        'Crush cans to save space'
+      ]
+    };
+  }
+  
+  // Organic/Compostable materials
+  if (materialLower.includes('food') || materialLower.includes('organic') || materialLower.includes('compost')) {
+    return {
+      recyclable: false,
+      recommendations: [
+        'Compost if possible',
+        'Use for garden fertilizer',
+        'Dispose in organic waste bin if available'
+      ]
+    };
+  }
+  
+  // Default case
+  return {
+    recyclable: false,
+    recommendations: [
+      'Check local disposal guidelines',
+      'Consider if item can be repurposed',
+      'Dispose according to local regulations'
+    ]
+  };
 }
