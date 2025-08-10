@@ -43,62 +43,125 @@ export function ClassificationResult({ result }: Props) {
     return recommendations.length > 0 ? recommendations : [text];
   };
 
-  const highlightMaterialTypes = (text: string) => {
-    // Common material types to highlight
-    const materialTypes = [
-      'plastic', 'plastics', 'metal', 'metals', 'glass', 'paper', 'cardboard',
-      'aluminum', 'steel', 'copper', 'fabric', 'textile', 'organic', 'electronic',
-      'electronics', 'battery', 'batteries', 'wood', 'ceramic', 'rubber'
+  const parseFormattedText = (text: string) => {
+    // Professional text parsing similar to FAANG company implementations
+    const parts: Array<{ text: string; type: string }> = [];
+    
+    // Enhanced regex to handle various markdown patterns
+    const patterns = [
+      { regex: /\*\*(.*?)\*\*/g, type: 'bold' },
+      { regex: /\*(.*?)\*/g, type: 'italic' },
+      { regex: /`(.*?)`/g, type: 'code' },
+      { regex: /__(.*?)__/g, type: 'underline' }
     ];
     
-    let highlightedText = text;
+    // Find all matches for all patterns
+    const allMatches: Array<{
+      start: number;
+      end: number;
+      content: string;
+      type: string;
+      fullMatch: string;
+    }> = [];
     
-    // Look for material types surrounded by ** (markdown bold)
-    materialTypes.forEach(material => {
-      const regex = new RegExp(`\\*\\*${material}\\*\\*`, 'gi');
-      highlightedText = highlightedText.replace(regex, `"${material}"`);
-    });
-    
-    // Split text and highlight material types
-    const parts = [];
-    let currentIndex = 0;
-    
-    materialTypes.forEach(material => {
-      const regex = new RegExp(`"${material}"`, 'gi');
+    patterns.forEach(pattern => {
       let match;
-      
-      while ((match = regex.exec(highlightedText)) !== null) {
-        // Add text before the match
-        if (match.index > currentIndex) {
-          parts.push({
-            text: highlightedText.slice(currentIndex, match.index),
-            isHighlight: false
-          });
-        }
-        
-        // Add the highlighted material
-        parts.push({
-          text: `"${match[0].slice(1, -1)}"`, // Remove and re-add quotes for consistent formatting
-          isHighlight: true
+      while ((match = pattern.regex.exec(text)) !== null) {
+        allMatches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          content: match[1],
+          type: pattern.type,
+          fullMatch: match[0]
         });
-        
-        currentIndex = match.index + match[0].length;
       }
     });
     
+    // Sort matches by position
+    allMatches.sort((a, b) => a.start - b.start);
+    
+    // Process non-overlapping matches
+    const processedMatches: Array<{
+      start: number;
+      end: number;
+      content: string;
+      type: string;
+      fullMatch: string;
+    }> = [];
+    
+    allMatches.forEach(match => {
+      const overlaps = processedMatches.some(processed => 
+        (match.start >= processed.start && match.start < processed.end) ||
+        (match.end > processed.start && match.end <= processed.end)
+      );
+      if (!overlaps) {
+        processedMatches.push(match);
+      }
+    });
+    
+    // Build the parts array
+    let lastIndex = 0;
+    processedMatches.forEach(match => {
+      // Add text before the match
+      if (match.start > lastIndex) {
+        const textBefore = text.slice(lastIndex, match.start);
+        if (textBefore.trim()) {
+          parts.push({ text: textBefore, type: 'text' });
+        }
+      }
+      
+      // Add the formatted match
+      parts.push({ text: match.content, type: match.type });
+      lastIndex = match.end;
+    });
+    
     // Add remaining text
-    if (currentIndex < highlightedText.length) {
-      parts.push({
-        text: highlightedText.slice(currentIndex),
-        isHighlight: false
-      });
+    if (lastIndex < text.length) {
+      const remainingText = text.slice(lastIndex);
+      if (remainingText.trim()) {
+        parts.push({ text: remainingText, type: 'text' });
+      }
     }
     
-    return parts.length > 0 ? parts : [{ text: highlightedText, isHighlight: false }];
+    // If no matches found, return the original text
+    return parts.length > 0 ? parts : [{ text, type: 'text' }];
+  };
+
+  const renderFormattedText = (parts: Array<{ text: string; type: string }>) => {
+    return parts.map((part, index) => {
+      switch (part.type) {
+        case 'bold':
+          return (
+            <strong key={index} className="font-semibold text-orange-300">
+              {part.text}
+            </strong>
+          );
+        case 'italic':
+          return (
+            <em key={index} className="italic text-blue-300">
+              {part.text}
+            </em>
+          );
+        case 'code':
+          return (
+            <code key={index} className="bg-gray-800 text-green-300 px-1 py-0.5 rounded text-sm font-mono">
+              {part.text}
+            </code>
+          );
+        case 'underline':
+          return (
+            <span key={index} className="underline text-purple-300">
+              {part.text}
+            </span>
+          );
+        default:
+          return <span key={index}>{part.text}</span>;
+      }
+    });
   };
 
   const parsedRecommendations = parseRecommendations(result.recommendations);
-  const materialParts = highlightMaterialTypes(result.material);
+  const materialTextParts = parseFormattedText(result.material);
 
   return (
     <motion.div
@@ -124,16 +187,10 @@ export function ClassificationResult({ result }: Props) {
             <div className="space-y-2">
               <span className="text-sm text-green-300 uppercase tracking-wide font-medium">Material Type:</span>
               <div className="bg-gradient-to-r from-green-950/40 to-emerald-950/40 rounded-lg p-4 border border-green-400/15 backdrop-blur-sm">
-                <div className="text-white text-base leading-relaxed text-justify hyphens-auto break-words">
-                  {materialParts.map((part, index) => (
-                    part.isHighlight ? (
-                      <span key={index} className="text-orange-400 font-semibold">
-                        {part.text}
-                      </span>
-                    ) : (
-                      <span key={index}>{part.text}</span>
-                    )
-                  ))}
+                <div className="text-white text-base leading-relaxed text-justify hyphens-auto break-words space-y-2">
+                  <div className="font-light leading-7 tracking-wide">
+                    {renderFormattedText(materialTextParts)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -171,18 +228,23 @@ export function ClassificationResult({ result }: Props) {
             Recycling Recommendations
           </h3>
           <div className="space-y-2">
-            {parsedRecommendations.map((rec, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="flex items-start gap-3 bg-gradient-to-r from-green-950/30 to-emerald-950/30 backdrop-blur-sm rounded-lg p-4 border border-green-400/15"
-              >
-                <Check className="w-4 h-4 text-green-400 mt-1 flex-shrink-0" />
-                <span className="text-gray-200 text-sm leading-relaxed text-justify hyphens-auto flex-1">{rec}</span>
-              </motion.div>
-            ))}
+            {parsedRecommendations.map((rec, index) => {
+              const formattedRec = parseFormattedText(rec);
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="flex items-start gap-3 bg-gradient-to-r from-green-950/30 to-emerald-950/30 backdrop-blur-sm rounded-lg p-4 border border-green-400/15"
+                >
+                  <Check className="w-4 h-4 text-green-400 mt-1 flex-shrink-0" />
+                  <div className="text-gray-200 text-sm leading-relaxed text-justify hyphens-auto flex-1 font-light tracking-wide">
+                    {renderFormattedText(formattedRec)}
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </div>
