@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Camera, RotateCcw } from 'lucide-react';
 import { classifyImage, type ClassificationResult as ClassificationResultType } from '../lib/classifier';
 import { ClassificationResult } from './ClassificationResult';
+import { AIClassificationLoader } from './AIClassificationLoader';
 
 interface LiveCameraProps {
   onClose: () => void;
@@ -231,15 +232,18 @@ export function LiveCamera({ onClose }: LiveCameraProps) {
                 className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-full w-16 h-16 flex items-center justify-center transition-colors shadow-lg"
                 aria-label="Capture image"
               >
-                {isCapturing ? (
-                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Camera className="w-8 h-8" />
-                )}
+                <Camera className="w-8 h-8" />
               </button>
             </div>
           )}
         </div>
+
+        {/* AI Classification Loading Animation */}
+        <AnimatePresence>
+          {isCapturing && (
+            <AIClassificationLoader stage="analyzing" />
+          )}
+        </AnimatePresence>
 
         {/* Classification Result Modal - Same style as ImageUpload */}
         <AnimatePresence>

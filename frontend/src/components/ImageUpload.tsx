@@ -150,7 +150,8 @@ export default function ImageUpload() {
         }
       }}
     >
-      <div className="bg-black/40 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/10">
+      <div className="relative bg-black/40 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/10">
+        {isLoading && <LoadingScreen stage={loadingStage} />}
         <div className="p-8 md:p-12">
           <motion.div 
             className="space-y-8"
@@ -202,7 +203,6 @@ export default function ImageUpload() {
                     alt="Preview"
                     className="w-full h-full object-contain"
                   />
-                  {isLoading && <LoadingScreen stage={loadingStage} />}
                 </motion.div>
               )}
             </AnimatePresence>
