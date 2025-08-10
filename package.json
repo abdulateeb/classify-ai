@@ -1,0 +1,14 @@
+{
+  "name": "wastecycle-fullstack",
+  "version": "1.0.0",
+  "description": "Full-stack waste material classification application",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "start": "python api.py",
+    "dev": "python run.py"
+  },
+  "engines": {
+    "node": "18.x",
+    "python": "3.11.x"
+  }
+}

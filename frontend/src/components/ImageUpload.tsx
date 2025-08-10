@@ -98,8 +98,8 @@ export default function ImageUpload() {
       });
 
       setLoadingStage('analyzing');
-      // Frontend-only deployment: Use classification only
-      const classificationResult = await classifyImage(imageRef.current!);
+      // Use new API that accepts File directly
+      const classificationResult = await classifyImage(file);
       
       setLoadingStage('complete');
       await new Promise(resolve => setTimeout(resolve, 500));
