@@ -13,7 +13,9 @@ export interface ClassificationResult {
 }
 
 // API endpoint configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Default to Vite proxy path in dev to avoid CORS: '/api'
+// Allow override via VITE_API_URL in production deployments
+const API_BASE_URL: string = (import.meta as any).env?.VITE_API_URL || '/api';
 
 export async function loadModel() {
   // No longer need to load a local model since we're using Gemini API
@@ -24,7 +26,7 @@ export async function loadModel() {
       console.log('Checking API connection...');
       
       try {
-        const response = await fetch(`${API_BASE_URL}/health`);
+  const response = await fetch(`${API_BASE_URL}/health`);
         if (!response.ok) {
           throw new Error(`API health check failed: ${response.status}`);
         }
@@ -67,7 +69,7 @@ export async function classifyImage(imageElement: HTMLImageElement): Promise<Cla
     formData.append('file', blob, 'image.jpg');
 
     // Call the NEW /identify API endpoint
-    const response = await fetch(`${API_BASE_URL}/identify`, {
+  const response = await fetch(`${API_BASE_URL}/identify`, {
       method: 'POST',
       body: formData,
     });

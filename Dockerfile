@@ -14,5 +14,5 @@ COPY api.py ./
 
 EXPOSE 8000
 
-# Production server command (per specification)
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "api:app"]
+# Production server command (use uvicorn worker for FastAPI + middleware)
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "api:app"]

@@ -23,14 +23,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS intentionally disabled; frontend should use a dev/prod proxy for same-origin requests.
 
 # Configure Google Gemini AI
 GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")

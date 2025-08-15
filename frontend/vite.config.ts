@@ -10,6 +10,14 @@ export default defineConfig({
   server: {
     port: 5000,
     host: true, // Allow external connections
+    proxy: {
+      // Forward API calls to backend to avoid CORS in dev
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
   },
   build: {
     rollupOptions: {
