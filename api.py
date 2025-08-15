@@ -7,13 +7,18 @@ from uploaded images using Google's Gemini model.
 
 import os
 import base64
+import logging
+import traceback
 from typing import Dict, Any
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-# Load environment variables from .env file
+# Configure logging to make sure messages appear in Railway and locally
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Load environment variables from .env file for local development
 load_dotenv()
 
 # Initialize FastAPI application
@@ -23,142 +28,105 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS only when explicitly configured via environment (e.g., in production)
-allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "").strip()
-if allowed_origins_env:
-    allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allowed_origins,
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
-    )
+# This list explicitly allows your production and local frontends to make requests.
+origins = [
+    "https://wastecycle.dev",  # Your Vercel frontend URL
+    "http://localhost:5173",   # Your default local development URL for Vite
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 # Configure Google Gemini AI
+# This will use the Railway variable in production and the .env variable locally.
 GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GOOGLE_API_KEY:
+    logging.critical("FATAL: GEMINI_API_KEY not found in environment variables.")
     raise ValueError("GEMINI_API_KEY not found in environment variables")
 
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# Initialize the Gemini model
+# Initialize the Gemini model with the specified version
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 model = genai.GenerativeModel(GEMINI_MODEL)
 
 
-async def identify_waste_material(image_bytes: bytes) -> str:
+async def identify_waste_material(image_bytes: bytes, mime_type: str) -> str:
     """
     Asynchronous helper function to identify waste material from image bytes.
-    
-    Args:
-        image_bytes: Raw bytes of the uploaded image
-        
-    Returns:
-        str: Identified material type
-        
-    Raises:
-        Exception: If material identification fails
     """
+    logging.info("Starting waste material identification with Gemini.")
     try:
-        # Convert image bytes to base64 for Gemini API
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        prompt_text = "Analyze this image and identify the primary material of the waste item shown. Respond with the name of the material (e.g., 'Plastic', 'Cardboard', 'Glass'), and also mention what have you observed in the image."
         
-        # Create the multimodal prompt with image and text
-        prompt_text = "Analyze this image and identify the primary material of the waste item shown."
+        image_part = {
+            "mime_type": mime_type,
+            "data": image_bytes
+        }
         
-        # Prepare the content for Gemini API
-        content = [
-            prompt_text,
-            {
-                "mime_type": "image/jpeg",  # Assuming JPEG format
-                "data": image_base64
-            }
-        ]
+        # Use the asynchronous version of the API call for performance
+        response = await model.generate_content_async([prompt_text, image_part])
         
-        # Generate content using Gemini model
-        response = model.generate_content(content)
-        
-        # Extract and return the identified material
         identified_material = response.text.strip()
+        logging.info(f"Gemini identified material as: {identified_material}")
         return identified_material
         
     except Exception as e:
-        raise Exception(f"Failed to identify waste material: {str(e)}")
+        # This will now log the full error from the Gemini API call
+        logging.error(f"Error during Gemini API call: {e}")
+        logging.error(traceback.format_exc())
+        raise Exception("Failed to get a response from the AI model.")
 
 
 @app.post("/identify")
 async def identify_endpoint(file: UploadFile = File(...)) -> Dict[str, Any]:
     """
     POST endpoint for waste material identification.
-    
-    Accepts multipart/form-data with file upload and returns identified material.
-    
-    Args:
-        file: Uploaded image file
-        
-    Returns:
-        Dict containing the identified material
-        
-    Raises:
-        HTTPException: If file processing or identification fails
     """
-    # Validate file upload
-    if not file:
-        raise HTTPException(status_code=400, detail="No file uploaded")
+    logging.info(f"Received request for /identify with file: {file.filename}")
     
-    # Validate file type (optional but recommended)
     if not file.content_type or not file.content_type.startswith('image/'):
+        logging.warning(f"Invalid file type uploaded: {file.content_type}")
         raise HTTPException(status_code=400, detail="File must be an image")
     
     try:
-        # Read the raw bytes from the uploaded file
         image_bytes = await file.read()
+        logging.info(f"Read {len(image_bytes)} bytes from {file.filename}.")
         
-        # Call the helper function to identify waste material
-        identified_material = await identify_waste_material(image_bytes)
+        identified_material = await identify_waste_material(image_bytes, file.content_type)
         
-        # Return JSON response with identified material
         return {"material": identified_material}
         
     except Exception as e:
+        # This block catches any error and prevents a 502 crash.
+        logging.error(f"Caught exception in /identify endpoint: {e}")
+        logging.error(traceback.format_exc())
         raise HTTPException(
             status_code=500, 
-            detail=f"Material identification failed: {str(e)}"
+            detail="The server encountered an error during material identification."
         )
 
 
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
     """Health check endpoint to verify API is running."""
-    return {
-        "status": "healthy",
-        "service": "Waste Material Identification API",
-        "model": GEMINI_MODEL,
-        "api_configured": bool(GOOGLE_API_KEY)
-    }
+    return {"status": "healthy"}
 
 
 @app.get("/")
 async def root() -> Dict[str, Any]:
     """Root endpoint with API information."""
-    return {
-        "message": "Waste Material Identification API",
-        "version": "1.0.0",
-        "model": GEMINI_MODEL,
-        "endpoints": {
-            "identify": "/identify (POST)",
-            "health": "/health (GET)",
-            "docs": "/docs"
-        }
-    }
+    return {"message": "Welcome to the Waste Material Identification API"}
 
 
+# This block is only for running the app locally (e.g., `python api.py`).
+# It will be ignored by Railway, which uses your Start Command.
 if __name__ == "__main__":
     import uvicorn
-    
-    # Get port from environment or default to 8000
     port = int(os.getenv("PORT", 8000))
-    host = os.getenv("HOST", "0.0.0.0")
-    
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run("api:app", host="0.0.0.0", port=port, reload=True)
